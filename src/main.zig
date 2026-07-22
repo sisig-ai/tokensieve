@@ -99,7 +99,7 @@ fn dispatchGit(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, res
         return 1;
     };
     const ctx = filter.Ctx{ .kind = kind, .args = trailing_slices };
-    return runner.run(gpa, io, child_argv, &ctx, filter.callback);
+    return runner.run(gpa, io, child_argv, &ctx, filter.callback, filter.shouldMergeStreams);
 }
 
 fn dispatchCargo(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, rest: []const [:0]const u8) u8 {
@@ -117,7 +117,7 @@ fn dispatchCargo(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, r
         return 1;
     };
     const ctx = filter.Ctx{ .kind = .cargo_test, .args = trailing_slices };
-    return runner.run(gpa, io, child_argv, &ctx, filter.callback);
+    return runner.run(gpa, io, child_argv, &ctx, filter.callback, filter.shouldMergeStreams);
 }
 
 fn dispatchPytest(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, rest: []const [:0]const u8) u8 {
@@ -130,7 +130,7 @@ fn dispatchPytest(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, 
         return 1;
     };
     const ctx = filter.Ctx{ .kind = .pytest, .args = trailing_slices };
-    return runner.run(gpa, io, child_argv, &ctx, filter.callback);
+    return runner.run(gpa, io, child_argv, &ctx, filter.callback, filter.shouldMergeStreams);
 }
 
 fn dispatchBun(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, rest: []const [:0]const u8) u8 {
@@ -148,7 +148,7 @@ fn dispatchBun(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, res
         return 1;
     };
     const ctx = filter.Ctx{ .kind = .bun_test, .args = trailing_slices };
-    return runner.run(gpa, io, child_argv, &ctx, filter.callback);
+    return runner.run(gpa, io, child_argv, &ctx, filter.callback, filter.shouldMergeStreams);
 }
 
 fn dispatchEslint(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, rest: []const [:0]const u8) u8 {
@@ -161,7 +161,7 @@ fn dispatchEslint(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, 
         return 1;
     };
     const ctx = filter.Ctx{ .kind = .eslint, .args = trailing_slices };
-    return runner.run(gpa, io, child_argv, &ctx, filter.callback);
+    return runner.run(gpa, io, child_argv, &ctx, filter.callback, filter.shouldMergeStreams);
 }
 
 fn dispatchPrettier(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, rest: []const [:0]const u8) u8 {
@@ -174,7 +174,7 @@ fn dispatchPrettier(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator
         return 1;
     };
     const ctx = filter.Ctx{ .kind = .prettier, .args = trailing_slices };
-    return runner.run(gpa, io, child_argv, &ctx, filter.callback);
+    return runner.run(gpa, io, child_argv, &ctx, filter.callback, filter.shouldMergeStreams);
 }
 
 fn dispatchDjango(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, rest: []const [:0]const u8) u8 {
@@ -192,7 +192,7 @@ fn dispatchDjango(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, 
         return 1;
     };
     const ctx = filter.Ctx{ .kind = .django_test, .args = trailing_slices };
-    return runner.run(gpa, io, child_argv, &ctx, filter.callback);
+    return runner.run(gpa, io, child_argv, &ctx, filter.callback, filter.shouldMergeStreams);
 }
 
 fn toSlices(arena: std.mem.Allocator, args: []const [:0]const u8) ![]const []const u8 {

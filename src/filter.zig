@@ -23,6 +23,12 @@ pub fn callback(ptr: ?*const anyopaque, gpa: Allocator, stdout: []const u8) anye
     return apply(gpa, ctx.kind, ctx.args, stdout);
 }
 
+/// bun writes pass/fail/summary to stderr; merge streams before filtering on success.
+pub fn shouldMergeStreams(ptr: ?*const anyopaque) bool {
+    const ctx: *const Ctx = @ptrCast(@alignCast(ptr orelse return false));
+    return ctx.kind == .bun_test;
+}
+
 pub fn apply(gpa: Allocator, kind: Kind, args: []const []const u8, stdout: []const u8) ![]u8 {
     const stripped = try stripAnsi(gpa, stdout);
     errdefer gpa.free(stripped);

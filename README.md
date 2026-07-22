@@ -54,12 +54,12 @@ Unknown top-level command or git subcommand → stderr message, exit `2`. `token
 | `git diff` | ANSI strip only (full diff kept) |
 | `cargo test` | drop per-test `ok` lines when suite all-pass; keep summary; unknown shape → ANSI strip only |
 | `pytest` | drop `PASSED` / progress lines when all-pass; keep summary; unknown shape → ANSI strip only |
-| `bun test` | drop `(pass)` lines and bare file headers when all-pass; keep version + summary; unknown shape → ANSI strip only |
+| `bun test` | drop `(pass)` lines and bare file headers when all-pass; keep version + summary; unknown shape → ANSI strip only. On success, stdout+stderr are merged before filtering (bun prints results on stderr) and emitted on stdout only |
 | `eslint` | empty / `✖ 0 problems` → `eslint: ok`; otherwise ANSI strip only (no `-f json` injection) |
 | `prettier` | keep `All matched files use Prettier…`; drop `Checking formatting...`; unknown shape → ANSI strip only |
 | `django test` | drop `... ok` and create/destroy DB lines when all-pass; keep Found/System check/Ran/OK; unknown shape → ANSI strip only |
 
-Capture loses stdout/stderr interleaving; each stream is still byte-identical to the child’s buffer.
+Capture loses stdout/stderr interleaving. Unless noted (`bun test` merge), each stream is byte-identical to the child’s buffer.
 
 ## Example (bytes / lines)
 

@@ -28,13 +28,19 @@ fn writeAll(io: Io, file: Io.File, bytes: []const u8) !void {
     try file.writeStreamingAll(io, bytes);
 }
 
-/// Spawn argv, map termination, filter stdout on exit 0 via callback, always forward stderr raw.
+pub const MergeStreamsFn = *const fn (ctx: ?*const anyopaque) bool;
+
+/// Spawn argv, map termination.
+/// On exit 0: filter stdout (or stdout+stderr concatenated when merge_fn says so), then write.
+/// When merged, filtered result goes to stdout and stderr is omitted (bun puts results on stderr).
+/// On nonzero: both streams verbatim.
 pub fn run(
     gpa: Allocator,
     io: Io,
     argv: []const []const u8,
     filter_ctx: ?*const anyopaque,
     filter_fn: FilterFn,
+    merge_fn: ?MergeStreamsFn,
 ) u8 {
     const result = std.process.run(gpa, io, .{ .argv = argv }) catch |err| {
         const code = spawnErrorToCode(err);
@@ -56,13 +62,29 @@ pub fn run(
     }
 
     if (code == 0) {
-        const filtered = filter_fn(filter_ctx, gpa, result.stdout) catch |err| {
+        const merge = if (merge_fn) |f| f(filter_ctx) else false;
+        var input_owned: ?[]u8 = null;
+        defer if (input_owned) |o| gpa.free(o);
+
+        const input: []const u8 = if (merge) blk: {
+            const n = result.stdout.len + result.stderr.len;
+            const buf = gpa.alloc(u8, n) catch {
+                std.debug.print("tokensieve: out of memory\n", .{});
+                return 1;
+            };
+            @memcpy(buf[0..result.stdout.len], result.stdout);
+            @memcpy(buf[result.stdout.len..], result.stderr);
+            input_owned = buf;
+            break :blk buf;
+        } else result.stdout;
+
+        const filtered = filter_fn(filter_ctx, gpa, input) catch |err| {
             std.debug.print("tokensieve: filter error: {s}\n", .{@errorName(err)});
             return 1;
         };
-        defer if (filtered.ptr != result.stdout.ptr) gpa.free(filtered);
+        defer if (filtered.ptr != input.ptr) gpa.free(filtered);
         writeAll(io, .stdout(), filtered) catch return 1;
-        writeAll(io, .stderr(), result.stderr) catch return 1;
+        if (!merge) writeAll(io, .stderr(), result.stderr) catch return 1;
     } else {
         writeAll(io, .stdout(), result.stdout) catch return 1;
         writeAll(io, .stderr(), result.stderr) catch return 1;
@@ -127,8 +149,8 @@ test "runner FileNotFound maps to 127" {
 test "runner propagates exit code via /bin/sh" {
     const gpa = std.testing.allocator;
     const io = std.testing.io;
-    const code0 = run(gpa, io, &.{ "/bin/sh", "-c", "exit 0" }, null, testIdentity);
+    const code0 = run(gpa, io, &.{ "/bin/sh", "-c", "exit 0" }, null, testIdentity, null);
     try std.testing.expectEqual(@as(u8, 0), code0);
-    const code4 = run(gpa, io, &.{ "/bin/sh", "-c", "exit 4" }, null, testIdentity);
+    const code4 = run(gpa, io, &.{ "/bin/sh", "-c", "exit 4" }, null, testIdentity, null);
     try std.testing.expectEqual(@as(u8, 4), code4);
 }
