@@ -2,7 +2,7 @@
 
 Minimal Zig CLI that runs a known tool, and on **success** optionally compresses **stdout** so LLM agents spend fewer tokens. Stderr is always forwarded unchanged. Exit status is forwarded.
 
-Inspired by [rtk](https://github.com/rtk-ai/rtk)’s goal of cutting tool-output noise for agents; **independent implementation** (not a fork). Apache-2.0.
+Inspired by [rtk](https://github.com/rtk-ai/rtk)’s goal of cutting tool-output noise for agents; **independent implementation** (not a fork). MIT.
 
 ## Non-goals
 
@@ -86,4 +86,4 @@ tokensieve git log -n 5 | wc -c -l
 
 ## License
 
-Apache-2.0 — see [LICENSE](./LICENSE).
+MIT — see [LICENSE](./LICENSE).
