@@ -24,8 +24,8 @@ pub fn spawnErrorToCode(err: anyerror) u8 {
     return if (isExecNotFound(err)) 127 else 1;
 }
 
-fn writeAll(io: Io, file: Io.File, bytes: []const u8) void {
-    file.writeStreamingAll(io, bytes) catch {};
+fn writeAll(io: Io, file: Io.File, bytes: []const u8) !void {
+    try file.writeStreamingAll(io, bytes);
 }
 
 /// Spawn argv, map termination, filter stdout on exit 0 via callback, always forward stderr raw.
@@ -61,11 +61,11 @@ pub fn run(
             return 1;
         };
         defer if (filtered.ptr != result.stdout.ptr) gpa.free(filtered);
-        writeAll(io, .stdout(), filtered);
-        writeAll(io, .stderr(), result.stderr);
+        writeAll(io, .stdout(), filtered) catch return 1;
+        writeAll(io, .stderr(), result.stderr) catch return 1;
     } else {
-        writeAll(io, .stdout(), result.stdout);
-        writeAll(io, .stderr(), result.stderr);
+        writeAll(io, .stdout(), result.stdout) catch return 1;
+        writeAll(io, .stderr(), result.stderr) catch return 1;
     }
 
     if (code != 0 and result.term != .exited and result.term != .signal) {
