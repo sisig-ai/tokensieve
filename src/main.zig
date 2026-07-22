@@ -19,6 +19,8 @@ const usage =
     \\  django test [-- args...]
     \\  ruff [-- args...]
     \\  mypy [-- args...]
+    \\  rg [-- args...]
+    \\  grep [-- args...]
     \\  --help
     \\  --version
     \\
@@ -74,6 +76,13 @@ pub fn main(init: std.process.Init) u8 {
     }
     if (std.mem.eql(u8, cmd, "mypy")) {
         return dispatchMypy(gpa, io, arena, args[2..]);
+    }
+    if (std.mem.eql(u8, cmd, "rg")) {
+        return dispatchRg(gpa, io, arena, args[2..]);
+    }
+    if (std.mem.eql(u8, cmd, "grep")) {
+        const path_env = init.environ_map.get("PATH") orelse "";
+        return dispatchGrep(gpa, io, arena, path_env, args[2..]);
     }
 
     std.debug.print("tokensieve: unknown command: {s}\n{s}", .{ cmd, usage });
@@ -226,6 +235,35 @@ fn dispatchMypy(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, re
         return 1;
     };
     const ctx = filter.Ctx{ .kind = .mypy, .args = trailing_slices };
+    return runner.run(gpa, io, child_argv, &ctx, filter.callback, filter.shouldMergeStreams);
+}
+
+fn dispatchRg(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, rest: []const [:0]const u8) u8 {
+    return dispatchGrepLike(gpa, io, arena, "rg", rest);
+}
+
+fn dispatchGrep(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, path_env: []const u8, rest: []const [:0]const u8) u8 {
+    // Prefer ripgrep when present; fall back to system grep.
+    const exe = blk: {
+        const found = runner.findOnPath(arena, io, path_env, "rg") catch {
+            std.debug.print("tokensieve: out of memory\n", .{});
+            return 1;
+        };
+        break :blk found orelse "grep";
+    };
+    return dispatchGrepLike(gpa, io, arena, exe, rest);
+}
+
+fn dispatchGrepLike(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, exe: []const u8, rest: []const [:0]const u8) u8 {
+    const child_argv = buildArgv(arena, &.{exe}, rest) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const trailing_slices = toSlices(arena, rest) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const ctx = filter.Ctx{ .kind = .grep, .args = trailing_slices };
     return runner.run(gpa, io, child_argv, &ctx, filter.callback, filter.shouldMergeStreams);
 }
 

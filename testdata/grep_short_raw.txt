@@ -1,0 +1,2 @@
+a.txt:1: foo
+b.txt:2: bar

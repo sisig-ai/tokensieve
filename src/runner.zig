@@ -24,6 +24,22 @@ pub fn spawnErrorToCode(err: anyerror) u8 {
     return if (isExecNotFound(err)) 127 else 1;
 }
 
+/// First PATH hit for `name`, or null. Caller owns the returned slice (use arena).
+pub fn findOnPath(allocator: Allocator, io: Io, path_env: []const u8, name: []const u8) !?[]const u8 {
+    var it = std.mem.splitScalar(u8, path_env, ':');
+    while (it.next()) |dir| {
+        if (dir.len == 0) continue;
+        const candidate = try std.fs.path.join(allocator, &.{ dir, name });
+        errdefer allocator.free(candidate);
+        Io.Dir.access(.cwd(), io, candidate, .{}) catch {
+            allocator.free(candidate);
+            continue;
+        };
+        return candidate;
+    }
+    return null;
+}
+
 fn writeAll(io: Io, file: Io.File, bytes: []const u8) !void {
     try file.writeStreamingAll(io, bytes);
 }

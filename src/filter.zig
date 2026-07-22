@@ -13,6 +13,7 @@ pub const Kind = enum {
     django_test,
     ruff,
     mypy,
+    grep,
 };
 
 pub const Ctx = struct {
@@ -47,6 +48,7 @@ pub fn apply(gpa: Allocator, kind: Kind, args: []const []const u8, stdout: []con
         .django_test => try compactDjangoTest(gpa, stripped),
         .ruff => try compactRuff(gpa, stripped),
         .mypy => try compactMypy(gpa, stripped),
+        .grep => if (grepArgsAllowCompact(args)) try compactGrep(gpa, stripped) else null,
     };
 
     if (compacted) |c| {
@@ -473,6 +475,51 @@ fn compactMypy(gpa: Allocator, input: []const u8) !?[]u8 {
     return try gpa.dupe(u8, "mypy: ok\n");
 }
 
+const GREP_MAX_LINE_LEN: usize = 120;
+const GREP_MAX_LINES: usize = 150;
+
+fn grepArgsAllowCompact(args: []const []const u8) bool {
+    for (args) |a| {
+        if (std.mem.eql(u8, a, "--json")) return false;
+        if (std.mem.startsWith(u8, a, "--json=")) return false;
+    }
+    return true;
+}
+
+/// Truncate each line to GREP_MAX_LINE_LEN and hard-cap GREP_MAX_LINES (+N more).
+fn compactGrep(gpa: Allocator, input: []const u8) !?[]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(gpa);
+    var it = std.mem.splitScalar(u8, input, '\n');
+    var kept: usize = 0;
+    var total_nonempty: usize = 0;
+    var first = true;
+    while (it.next()) |raw| {
+        const line = std.mem.trimEnd(u8, raw, " \t\r");
+        if (line.len == 0) continue;
+        total_nonempty += 1;
+        if (kept >= GREP_MAX_LINES) continue;
+        if (!first) try out.append(gpa, '\n');
+        if (line.len > GREP_MAX_LINE_LEN) {
+            try out.appendSlice(gpa, line[0..GREP_MAX_LINE_LEN]);
+            try out.appendSlice(gpa, "…");
+        } else {
+            try out.appendSlice(gpa, line);
+        }
+        first = false;
+        kept += 1;
+    }
+    if (kept == 0) return try gpa.dupe(u8, input);
+    if (total_nonempty > GREP_MAX_LINES) {
+        try out.append(gpa, '\n');
+        var buf: [64]u8 = undefined;
+        const msg = try std.fmt.bufPrint(&buf, "… +{d} more lines", .{total_nonempty - GREP_MAX_LINES});
+        try out.appendSlice(gpa, msg);
+    }
+    try out.append(gpa, '\n');
+    return try out.toOwnedSlice(gpa);
+}
+
 fn isDjangoOkLine(line: []const u8) bool {
     return std.mem.endsWith(u8, line, " ... ok");
 }
@@ -729,6 +776,42 @@ test "mypy with errors is ansi-only" {
     defer gpa.free(got);
     try std.testing.expect(std.mem.indexOf(u8, got, "Incompatible types") != null);
     try std.testing.expect(std.mem.indexOf(u8, got, "mypy: ok") == null);
+}
+
+test "grep compact truncates and caps" {
+    try expectFixture(
+        std.testing.allocator,
+        .grep,
+        &.{ "pattern", "src" },
+        @embedFile("testdata/grep_raw.txt"),
+        @embedFile("testdata/grep_filtered.txt"),
+    );
+}
+
+test "grep short output keeps lines" {
+    try expectFixture(
+        std.testing.allocator,
+        .grep,
+        &.{},
+        @embedFile("testdata/grep_short_raw.txt"),
+        @embedFile("testdata/grep_short_filtered.txt"),
+    );
+}
+
+test "grep --json is ansi-only" {
+    const gpa = std.testing.allocator;
+    const got = try apply(gpa, .grep, &.{"--json"}, @embedFile("testdata/grep_raw.txt"));
+    defer gpa.free(got);
+    try std.testing.expect(std.mem.indexOf(u8, got, "… +") == null);
+    try std.testing.expect(std.mem.indexOf(u8, got, "path/file_155.zig") != null);
+    try std.testing.expect(std.mem.indexOf(u8, got, "\x1b[") == null);
+}
+
+test "grepArgsAllowCompact gating" {
+    try std.testing.expect(grepArgsAllowCompact(&.{}));
+    try std.testing.expect(grepArgsAllowCompact(&.{ "foo", "bar" }));
+    try std.testing.expect(!grepArgsAllowCompact(&.{"--json"}));
+    try std.testing.expect(!grepArgsAllowCompact(&.{"--json=true"}));
 }
 
 test "gitLogArgsAllowCompact gating" {

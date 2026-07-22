@@ -37,6 +37,8 @@ tokensieve prettier [-- args...]
 tokensieve django test [-- args...]
 tokensieve ruff [-- args...]
 tokensieve mypy [-- args...]
+tokensieve rg [-- args...]
+tokensieve grep [-- args...]
 tokensieve --help
 tokensieve --version
 ```
@@ -44,6 +46,8 @@ tokensieve --version
 Top-level `--help` / `--version` are tokensieve’s. After a recognized tool, flags are forwarded to the child. Trailing argv (including a literal `--`) is forwarded unchanged.
 
 Unknown top-level command or git subcommand → stderr message, exit `2`. `tokensieve bun` / `tokensieve django` without `test` → exit `2`.
+
+`tokensieve grep` prefers `rg` when it is on `PATH`, otherwise runs system `grep`. `tokensieve rg` always runs `rg`.
 
 ### Success filters
 
@@ -62,6 +66,7 @@ Unknown top-level command or git subcommand → stderr message, exit `2`. `token
 | `django test` | drop `... ok` and create/destroy DB lines when all-pass; keep Found/System check/Ran/OK; unknown shape → ANSI strip only |
 | `ruff` | `All checks passed!` / `already formatted` / empty → `ruff: ok`; otherwise ANSI strip only |
 | `mypy` | `Success: no issues found…` / empty → `mypy: ok`; otherwise ANSI strip only |
+| `rg` / `grep` | truncate each line to 120 chars (`…`); hard-cap 150 lines then `… +N more lines`; `--json` → ANSI strip only. Exit 1 (no matches) and other nonzero → raw passthrough |
 
 Capture loses stdout/stderr interleaving. Unless noted (`bun test` merge), each stream is byte-identical to the child’s buffer.
 
@@ -77,7 +82,7 @@ git log -n 5 | wc -c -l
 tokensieve git log -n 5 | wc -c -l
 ```
 
-`cargo test` / `pytest` / `bun test` / `eslint` / `prettier` / `django test` / `ruff` / `mypy` filters are covered by fixtures under `testdata/` (optional live regen if those tools are installed).
+`cargo test` / `pytest` / `bun test` / `eslint` / `prettier` / `django test` / `ruff` / `mypy` / `rg`/`grep` filters are covered by fixtures under `testdata/` (optional live regen if those tools are installed).
 
 ## License
 
