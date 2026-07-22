@@ -11,6 +11,8 @@ pub const Kind = enum {
     eslint,
     prettier,
     django_test,
+    ruff,
+    mypy,
 };
 
 pub const Ctx = struct {
@@ -43,6 +45,8 @@ pub fn apply(gpa: Allocator, kind: Kind, args: []const []const u8, stdout: []con
         .eslint => try compactEslint(gpa, stripped),
         .prettier => try compactPrettier(gpa, stripped),
         .django_test => try compactDjangoTest(gpa, stripped),
+        .ruff => try compactRuff(gpa, stripped),
+        .mypy => try compactMypy(gpa, stripped),
     };
 
     if (compacted) |c| {
@@ -438,6 +442,37 @@ fn compactPrettier(gpa: Allocator, input: []const u8) !?[]u8 {
     return try out.toOwnedSlice(gpa);
 }
 
+fn ruffCleanShape(input: []const u8) bool {
+    const trimmed = std.mem.trim(u8, input, " \t\r\n");
+    if (trimmed.len == 0) return true;
+    if (std.mem.indexOf(u8, input, "All checks passed!") != null) return true;
+    // ruff format --check success: "N file(s) already formatted"
+    if (std.mem.indexOf(u8, input, " already formatted") != null) {
+        // reject "Would reformat"
+        return std.mem.indexOf(u8, input, "Would reformat") == null;
+    }
+    return false;
+}
+
+fn compactRuff(gpa: Allocator, input: []const u8) !?[]u8 {
+    if (!ruffCleanShape(input)) return null;
+    return try gpa.dupe(u8, "ruff: ok\n");
+}
+
+fn mypyCleanShape(input: []const u8) bool {
+    const trimmed = std.mem.trim(u8, input, " \t\r\n");
+    if (trimmed.len == 0) return true;
+    // Success: no issues found in 1 source file
+    // Success: no issues found in 12 source files
+    if (std.mem.indexOf(u8, input, "Success: no issues found") != null) return true;
+    return false;
+}
+
+fn compactMypy(gpa: Allocator, input: []const u8) !?[]u8 {
+    if (!mypyCleanShape(input)) return null;
+    return try gpa.dupe(u8, "mypy: ok\n");
+}
+
 fn isDjangoOkLine(line: []const u8) bool {
     return std.mem.endsWith(u8, line, " ... ok");
 }
@@ -637,6 +672,63 @@ test "django test compact success" {
         @embedFile("testdata/django_test_raw.txt"),
         @embedFile("testdata/django_test_filtered.txt"),
     );
+}
+
+test "ruff all checks passed is ok" {
+    try expectFixture(
+        std.testing.allocator,
+        .ruff,
+        &.{},
+        @embedFile("testdata/ruff_clean_raw.txt"),
+        @embedFile("testdata/ruff_clean_filtered.txt"),
+    );
+}
+
+test "ruff format already formatted is ok" {
+    try expectFixture(
+        std.testing.allocator,
+        .ruff,
+        &.{ "format", "--check" },
+        @embedFile("testdata/ruff_format_clean_raw.txt"),
+        @embedFile("testdata/ruff_format_clean_filtered.txt"),
+    );
+}
+
+test "ruff with diagnostics is ansi-only" {
+    const gpa = std.testing.allocator;
+    const raw =
+        \\foo.py:1:8: F401 [*] `os` imported but unused
+        \\Found 1 error.
+        \\[*] 1 fixable with the `--fix` option.
+        \\
+    ;
+    const got = try apply(gpa, .ruff, &.{}, raw);
+    defer gpa.free(got);
+    try std.testing.expect(std.mem.indexOf(u8, got, "F401") != null);
+    try std.testing.expect(std.mem.indexOf(u8, got, "ruff: ok") == null);
+}
+
+test "mypy success is ok" {
+    try expectFixture(
+        std.testing.allocator,
+        .mypy,
+        &.{},
+        @embedFile("testdata/mypy_clean_raw.txt"),
+        @embedFile("testdata/mypy_clean_filtered.txt"),
+    );
+}
+
+test "mypy with errors is ansi-only" {
+    const gpa = std.testing.allocator;
+    const raw =
+        \\foo.py:1: error: Incompatible types in assignment (expression has type "str", variable has type "int")  [assignment]
+        \\Found 1 error in 1 file (checked 1 source file)
+        \\
+    ;
+    const got = try apply(gpa, .mypy, &.{}, raw);
+    defer gpa.free(got);
+    try std.testing.expect(std.mem.indexOf(u8, got, "Incompatible types") != null);
+    try std.testing.expect(std.mem.indexOf(u8, got, "mypy: ok") == null);
 }
 
 test "gitLogArgsAllowCompact gating" {

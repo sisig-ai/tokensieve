@@ -35,6 +35,8 @@ tokensieve bun test [-- args...]
 tokensieve eslint [-- args...]
 tokensieve prettier [-- args...]
 tokensieve django test [-- args...]
+tokensieve ruff [-- args...]
+tokensieve mypy [-- args...]
 tokensieve --help
 tokensieve --version
 ```
@@ -58,6 +60,8 @@ Unknown top-level command or git subcommand → stderr message, exit `2`. `token
 | `eslint` | empty / `✖ 0 problems` → `eslint: ok`; otherwise ANSI strip only (no `-f json` injection) |
 | `prettier` | keep `All matched files use Prettier…`; drop `Checking formatting...`; unknown shape → ANSI strip only |
 | `django test` | drop `... ok` and create/destroy DB lines when all-pass; keep Found/System check/Ran/OK; unknown shape → ANSI strip only |
+| `ruff` | `All checks passed!` / `already formatted` / empty → `ruff: ok`; otherwise ANSI strip only |
+| `mypy` | `Success: no issues found…` / empty → `mypy: ok`; otherwise ANSI strip only |
 
 Capture loses stdout/stderr interleaving. Unless noted (`bun test` merge), each stream is byte-identical to the child’s buffer.
 
@@ -73,7 +77,7 @@ git log -n 5 | wc -c -l
 tokensieve git log -n 5 | wc -c -l
 ```
 
-`cargo test` / `pytest` / `bun test` / `eslint` / `prettier` / `django test` filters are covered by fixtures under `testdata/` (optional live regen if those tools are installed).
+`cargo test` / `pytest` / `bun test` / `eslint` / `prettier` / `django test` / `ruff` / `mypy` filters are covered by fixtures under `testdata/` (optional live regen if those tools are installed).
 
 ## License
 

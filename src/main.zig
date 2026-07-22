@@ -17,6 +17,8 @@ const usage =
     \\  eslint [-- args...]
     \\  prettier [-- args...]
     \\  django test [-- args...]
+    \\  ruff [-- args...]
+    \\  mypy [-- args...]
     \\  --help
     \\  --version
     \\
@@ -66,6 +68,12 @@ pub fn main(init: std.process.Init) u8 {
     }
     if (std.mem.eql(u8, cmd, "django")) {
         return dispatchDjango(gpa, io, arena, args[2..]);
+    }
+    if (std.mem.eql(u8, cmd, "ruff")) {
+        return dispatchRuff(gpa, io, arena, args[2..]);
+    }
+    if (std.mem.eql(u8, cmd, "mypy")) {
+        return dispatchMypy(gpa, io, arena, args[2..]);
     }
 
     std.debug.print("tokensieve: unknown command: {s}\n{s}", .{ cmd, usage });
@@ -192,6 +200,32 @@ fn dispatchDjango(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, 
         return 1;
     };
     const ctx = filter.Ctx{ .kind = .django_test, .args = trailing_slices };
+    return runner.run(gpa, io, child_argv, &ctx, filter.callback, filter.shouldMergeStreams);
+}
+
+fn dispatchRuff(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, rest: []const [:0]const u8) u8 {
+    const child_argv = buildArgv(arena, &.{"ruff"}, rest) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const trailing_slices = toSlices(arena, rest) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const ctx = filter.Ctx{ .kind = .ruff, .args = trailing_slices };
+    return runner.run(gpa, io, child_argv, &ctx, filter.callback, filter.shouldMergeStreams);
+}
+
+fn dispatchMypy(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, rest: []const [:0]const u8) u8 {
+    const child_argv = buildArgv(arena, &.{"mypy"}, rest) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const trailing_slices = toSlices(arena, rest) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const ctx = filter.Ctx{ .kind = .mypy, .args = trailing_slices };
     return runner.run(gpa, io, child_argv, &ctx, filter.callback, filter.shouldMergeStreams);
 }
 
