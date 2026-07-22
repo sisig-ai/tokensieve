@@ -107,7 +107,7 @@ fn dispatchGit(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, res
         return 2;
     };
 
-    const child_argv = buildArgv(arena, &.{"git", sub}, trailing) catch {
+    const child_argv = buildArgv(arena, &.{ "git", sub }, trailing) catch {
         std.debug.print("tokensieve: out of memory\n", .{});
         return 1;
     };
@@ -280,7 +280,25 @@ fn buildArgv(arena: std.mem.Allocator, prefix: []const []const u8, trailing: []c
     return out;
 }
 
+const filter_tests = struct {
+    comptime {
+        _ = @import("filter_test/git_status.zig");
+        _ = @import("filter_test/git_log.zig");
+        _ = @import("filter_test/git_diff.zig");
+        _ = @import("filter_test/cargo_test.zig");
+        _ = @import("filter_test/pytest.zig");
+        _ = @import("filter_test/bun_test.zig");
+        _ = @import("filter_test/eslint.zig");
+        _ = @import("filter_test/prettier.zig");
+        _ = @import("filter_test/django_test.zig");
+        _ = @import("filter_test/ruff.zig");
+        _ = @import("filter_test/mypy.zig");
+        _ = @import("filter_test/grep.zig");
+    }
+};
+
 test {
     _ = runner;
     _ = filter;
+    _ = filter_tests;
 }
