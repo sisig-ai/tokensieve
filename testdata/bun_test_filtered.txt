@@ -1,0 +1,6 @@
+bun test v1.3.13 (bf2e2cec)
+
+ 2 pass
+ 0 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [14.00ms]

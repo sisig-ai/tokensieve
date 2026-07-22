@@ -31,13 +31,17 @@ tokensieve git log [-- args...]
 tokensieve git diff [-- args...]
 tokensieve cargo test [-- args...]
 tokensieve pytest [-- args...]
+tokensieve bun test [-- args...]
+tokensieve eslint [-- args...]
+tokensieve prettier [-- args...]
+tokensieve django test [-- args...]
 tokensieve --help
 tokensieve --version
 ```
 
 Top-level `--help` / `--version` are tokensieve’s. After a recognized tool, flags are forwarded to the child. Trailing argv (including a literal `--`) is forwarded unchanged.
 
-Unknown top-level command or git subcommand → stderr message, exit `2`.
+Unknown top-level command or git subcommand → stderr message, exit `2`. `tokensieve bun` / `tokensieve django` without `test` → exit `2`.
 
 ### Success filters
 
@@ -50,6 +54,10 @@ Unknown top-level command or git subcommand → stderr message, exit `2`.
 | `git diff` | ANSI strip only (full diff kept) |
 | `cargo test` | drop per-test `ok` lines when suite all-pass; keep summary; unknown shape → ANSI strip only |
 | `pytest` | drop `PASSED` / progress lines when all-pass; keep summary; unknown shape → ANSI strip only |
+| `bun test` | drop `(pass)` lines and bare file headers when all-pass; keep version + summary; unknown shape → ANSI strip only |
+| `eslint` | empty / `✖ 0 problems` → `eslint: ok`; otherwise ANSI strip only (no `-f json` injection) |
+| `prettier` | keep `All matched files use Prettier…`; drop `Checking formatting...`; unknown shape → ANSI strip only |
+| `django test` | drop `... ok` and create/destroy DB lines when all-pass; keep Found/System check/Ran/OK; unknown shape → ANSI strip only |
 
 Capture loses stdout/stderr interleaving; each stream is still byte-identical to the child’s buffer.
 
@@ -65,7 +73,7 @@ git log -n 5 | wc -c -l
 tokensieve git log -n 5 | wc -c -l
 ```
 
-`cargo test` / `pytest` filters are covered by fixtures under `testdata/` (optional live regen if those tools are installed).
+`cargo test` / `pytest` / `bun test` / `eslint` / `prettier` / `django test` filters are covered by fixtures under `testdata/` (optional live regen if those tools are installed).
 
 ## License
 

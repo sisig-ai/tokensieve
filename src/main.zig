@@ -13,6 +13,10 @@ const usage =
     \\  git diff [-- args...]
     \\  cargo test [-- args...]
     \\  pytest [-- args...]
+    \\  bun test [-- args...]
+    \\  eslint [-- args...]
+    \\  prettier [-- args...]
+    \\  django test [-- args...]
     \\  --help
     \\  --version
     \\
@@ -50,6 +54,18 @@ pub fn main(init: std.process.Init) u8 {
     }
     if (std.mem.eql(u8, cmd, "pytest")) {
         return dispatchPytest(gpa, io, arena, args[2..]);
+    }
+    if (std.mem.eql(u8, cmd, "bun")) {
+        return dispatchBun(gpa, io, arena, args[2..]);
+    }
+    if (std.mem.eql(u8, cmd, "eslint")) {
+        return dispatchEslint(gpa, io, arena, args[2..]);
+    }
+    if (std.mem.eql(u8, cmd, "prettier")) {
+        return dispatchPrettier(gpa, io, arena, args[2..]);
+    }
+    if (std.mem.eql(u8, cmd, "django")) {
+        return dispatchDjango(gpa, io, arena, args[2..]);
     }
 
     std.debug.print("tokensieve: unknown command: {s}\n{s}", .{ cmd, usage });
@@ -114,6 +130,68 @@ fn dispatchPytest(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, 
         return 1;
     };
     const ctx = filter.Ctx{ .kind = .pytest, .args = trailing_slices };
+    return runner.run(gpa, io, child_argv, &ctx, filter.callback);
+}
+
+fn dispatchBun(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, rest: []const [:0]const u8) u8 {
+    if (rest.len == 0 or !std.mem.eql(u8, rest[0], "test")) {
+        std.debug.print("tokensieve: expected `bun test`\n{s}", .{usage});
+        return 2;
+    }
+    const trailing = rest[1..];
+    const child_argv = buildArgv(arena, &.{ "bun", "test" }, trailing) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const trailing_slices = toSlices(arena, trailing) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const ctx = filter.Ctx{ .kind = .bun_test, .args = trailing_slices };
+    return runner.run(gpa, io, child_argv, &ctx, filter.callback);
+}
+
+fn dispatchEslint(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, rest: []const [:0]const u8) u8 {
+    const child_argv = buildArgv(arena, &.{"eslint"}, rest) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const trailing_slices = toSlices(arena, rest) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const ctx = filter.Ctx{ .kind = .eslint, .args = trailing_slices };
+    return runner.run(gpa, io, child_argv, &ctx, filter.callback);
+}
+
+fn dispatchPrettier(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, rest: []const [:0]const u8) u8 {
+    const child_argv = buildArgv(arena, &.{"prettier"}, rest) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const trailing_slices = toSlices(arena, rest) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const ctx = filter.Ctx{ .kind = .prettier, .args = trailing_slices };
+    return runner.run(gpa, io, child_argv, &ctx, filter.callback);
+}
+
+fn dispatchDjango(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, rest: []const [:0]const u8) u8 {
+    if (rest.len == 0 or !std.mem.eql(u8, rest[0], "test")) {
+        std.debug.print("tokensieve: expected `django test`\n{s}", .{usage});
+        return 2;
+    }
+    const trailing = rest[1..];
+    const child_argv = buildArgv(arena, &.{ "python", "manage.py", "test" }, trailing) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const trailing_slices = toSlices(arena, trailing) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const ctx = filter.Ctx{ .kind = .django_test, .args = trailing_slices };
     return runner.run(gpa, io, child_argv, &ctx, filter.callback);
 }
 

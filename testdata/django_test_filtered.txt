@@ -1,0 +1,6 @@
+Found 12 test(s).
+System check identified no issues (0 silenced).
+----------------------------------------------------------------------
+Ran 12 tests in 2.451s
+
+OK

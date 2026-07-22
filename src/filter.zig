@@ -7,6 +7,10 @@ pub const Kind = enum {
     git_diff,
     cargo_test,
     pytest,
+    bun_test,
+    eslint,
+    prettier,
+    django_test,
 };
 
 pub const Ctx = struct {
@@ -29,6 +33,10 @@ pub fn apply(gpa: Allocator, kind: Kind, args: []const []const u8, stdout: []con
         .git_diff => null,
         .cargo_test => try compactCargoTest(gpa, stripped),
         .pytest => try compactPytest(gpa, stripped),
+        .bun_test => try compactBunTest(gpa, stripped),
+        .eslint => try compactEslint(gpa, stripped),
+        .prettier => try compactPrettier(gpa, stripped),
+        .django_test => try compactDjangoTest(gpa, stripped),
     };
 
     if (compacted) |c| {
@@ -315,6 +323,163 @@ fn compactPytest(gpa: Allocator, input: []const u8) !?[]u8 {
     return try out.toOwnedSlice(gpa);
 }
 
+fn isBunPassLine(line: []const u8) bool {
+    const t = std.mem.trimStart(u8, line, " \t");
+    return std.mem.startsWith(u8, t, "(pass)");
+}
+
+fn isBunFailLine(line: []const u8) bool {
+    const t = std.mem.trimStart(u8, line, " \t");
+    return std.mem.startsWith(u8, t, "(fail)");
+}
+
+fn isBunFileHeader(line: []const u8) bool {
+    const t = std.mem.trim(u8, line, " \t\r");
+    if (t.len < 2 or t[t.len - 1] != ':') return false;
+    const name = t[0 .. t.len - 1];
+    return std.mem.endsWith(u8, name, ".test.ts") or
+        std.mem.endsWith(u8, name, ".test.js") or
+        std.mem.endsWith(u8, name, ".test.tsx") or
+        std.mem.endsWith(u8, name, ".test.jsx");
+}
+
+fn bunSummaryHasZeroFail(line: []const u8) bool {
+    const t = std.mem.trim(u8, line, " \t\r");
+    // e.g. "0 fail" or " 0 fail"
+    if (std.mem.eql(u8, t, "0 fail")) return true;
+    if (std.mem.endsWith(u8, t, " fail")) {
+        const n = std.mem.trim(u8, t[0 .. t.len - " fail".len], " \t");
+        return std.mem.eql(u8, n, "0");
+    }
+    return false;
+}
+
+fn bunSummaryHasPass(line: []const u8) bool {
+    const t = std.mem.trim(u8, line, " \t\r");
+    return std.mem.endsWith(u8, t, " pass") and t.len > " pass".len;
+}
+
+fn bunAllPassShape(input: []const u8) bool {
+    var saw_pass = false;
+    var saw_zero_fail = false;
+    var it = std.mem.splitScalar(u8, input, '\n');
+    while (it.next()) |raw| {
+        const line = std.mem.trimEnd(u8, raw, " \t\r");
+        if (isBunFailLine(line)) return false;
+        if (bunSummaryHasPass(line)) saw_pass = true;
+        if (bunSummaryHasZeroFail(line)) saw_zero_fail = true;
+    }
+    return saw_pass and saw_zero_fail;
+}
+
+/// Drop (pass) lines and bare file headers when all-pass; keep version + summary.
+fn compactBunTest(gpa: Allocator, input: []const u8) !?[]u8 {
+    if (!bunAllPassShape(input)) return null;
+
+    var kept: std.ArrayList([]const u8) = .empty;
+    defer kept.deinit(gpa);
+    var it = std.mem.splitScalar(u8, input, '\n');
+    while (it.next()) |raw| {
+        const line = std.mem.trimEnd(u8, raw, " \t\r");
+        if (line.len == 0) continue;
+        if (isBunPassLine(line) or isBunFileHeader(line)) continue;
+        try kept.append(gpa, line);
+    }
+    if (kept.items.len == 0) return null;
+
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(gpa);
+    for (kept.items, 0..) |line, i| {
+        if (i > 0) {
+            // blank after version line
+            if (i == 1 and std.mem.startsWith(u8, kept.items[0], "bun test ")) {
+                try out.append(gpa, '\n');
+            }
+            try out.append(gpa, '\n');
+        }
+        try out.appendSlice(gpa, line);
+    }
+    try out.append(gpa, '\n');
+    return try out.toOwnedSlice(gpa);
+}
+
+fn compactEslint(gpa: Allocator, input: []const u8) !?[]u8 {
+    const trimmed = std.mem.trim(u8, input, " \t\r\n");
+    if (trimmed.len == 0) return try gpa.dupe(u8, "eslint: ok\n");
+    if (std.mem.indexOf(u8, input, "✖ 0 problems") != null) {
+        return try gpa.dupe(u8, "eslint: ok\n");
+    }
+    return null;
+}
+
+fn compactPrettier(gpa: Allocator, input: []const u8) !?[]u8 {
+    if (std.mem.indexOf(u8, input, "All matched files use Prettier") == null) return null;
+
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(gpa);
+    var it = std.mem.splitScalar(u8, input, '\n');
+    var first = true;
+    while (it.next()) |raw| {
+        const line = std.mem.trimEnd(u8, raw, " \t\r");
+        if (line.len == 0) continue;
+        const t = std.mem.trim(u8, line, " \t");
+        if (std.mem.eql(u8, t, "Checking formatting...")) continue;
+        if (!first) try out.append(gpa, '\n');
+        try out.appendSlice(gpa, line);
+        first = false;
+    }
+    if (!first) try out.append(gpa, '\n');
+    return try out.toOwnedSlice(gpa);
+}
+
+fn isDjangoOkLine(line: []const u8) bool {
+    return std.mem.endsWith(u8, line, " ... ok");
+}
+
+fn isDjangoDbLine(line: []const u8) bool {
+    return std.mem.startsWith(u8, line, "Creating test database") or
+        std.mem.startsWith(u8, line, "Destroying test database");
+}
+
+fn isDjangoOkSummary(line: []const u8) bool {
+    const t = std.mem.trim(u8, line, " \t\r");
+    return std.mem.eql(u8, t, "OK") or std.mem.startsWith(u8, t, "OK (");
+}
+
+fn djangoAllPassShape(input: []const u8) bool {
+    var saw_ok = false;
+    var saw_ran = false;
+    var it = std.mem.splitScalar(u8, input, '\n');
+    while (it.next()) |raw| {
+        const line = std.mem.trimEnd(u8, raw, " \t\r");
+        if (std.mem.endsWith(u8, line, " ... FAIL")) return false;
+        if (std.mem.startsWith(u8, std.mem.trim(u8, line, " \t"), "FAILED (")) return false;
+        if (isDjangoOkSummary(line)) saw_ok = true;
+        if (std.mem.startsWith(u8, line, "Ran ") and std.mem.indexOf(u8, line, " test") != null) saw_ran = true;
+    }
+    return saw_ok and saw_ran;
+}
+
+fn compactDjangoTest(gpa: Allocator, input: []const u8) !?[]u8 {
+    if (!djangoAllPassShape(input)) return null;
+
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(gpa);
+    var it = std.mem.splitScalar(u8, input, '\n');
+    var first = true;
+    while (it.next()) |raw| {
+        const line = std.mem.trimEnd(u8, raw, " \t\r");
+        if (line.len == 0) continue;
+        if (isDjangoOkLine(line) or isDjangoDbLine(line)) continue;
+        if (!first) try out.append(gpa, '\n');
+        if (isDjangoOkSummary(line)) try out.append(gpa, '\n');
+        try out.appendSlice(gpa, line);
+        first = false;
+    }
+    if (!first) try out.append(gpa, '\n');
+    return try out.toOwnedSlice(gpa);
+}
+
 fn expectFixture(gpa: Allocator, kind: Kind, args: []const []const u8, input: []const u8, expected: []const u8) !void {
     const got = try apply(gpa, kind, args, input);
     defer gpa.free(got);
@@ -400,6 +565,71 @@ test "pytest compact success" {
         &.{},
         @embedFile("testdata/pytest_raw.txt"),
         @embedFile("testdata/pytest_filtered.txt"),
+    );
+}
+
+test "bun test compact success" {
+    try expectFixture(
+        std.testing.allocator,
+        .bun_test,
+        &.{},
+        @embedFile("testdata/bun_test_raw.txt"),
+        @embedFile("testdata/bun_test_filtered.txt"),
+    );
+}
+
+test "eslint empty is ok" {
+    try expectFixture(
+        std.testing.allocator,
+        .eslint,
+        &.{},
+        @embedFile("testdata/eslint_clean_raw.txt"),
+        @embedFile("testdata/eslint_clean_filtered.txt"),
+    );
+}
+
+test "eslint zero problems is ok" {
+    try expectFixture(
+        std.testing.allocator,
+        .eslint,
+        &.{},
+        @embedFile("testdata/eslint_zero_problems_raw.txt"),
+        @embedFile("testdata/eslint_zero_problems_filtered.txt"),
+    );
+}
+
+test "eslint with problems is ansi-only" {
+    const gpa = std.testing.allocator;
+    const raw =
+        \\/tmp/foo.ts
+        \\  1:1  error  unused  no-unused-vars
+        \\
+        \\✖ 1 problem (1 error, 0 warnings)
+        \\
+    ;
+    const got = try apply(gpa, .eslint, &.{}, raw);
+    defer gpa.free(got);
+    try std.testing.expect(std.mem.indexOf(u8, got, "✖ 1 problem") != null);
+    try std.testing.expect(std.mem.indexOf(u8, got, "eslint: ok") == null);
+}
+
+test "prettier compact success" {
+    try expectFixture(
+        std.testing.allocator,
+        .prettier,
+        &.{},
+        @embedFile("testdata/prettier_raw.txt"),
+        @embedFile("testdata/prettier_filtered.txt"),
+    );
+}
+
+test "django test compact success" {
+    try expectFixture(
+        std.testing.allocator,
+        .django_test,
+        &.{},
+        @embedFile("testdata/django_test_raw.txt"),
+        @embedFile("testdata/django_test_filtered.txt"),
     );
 }
 

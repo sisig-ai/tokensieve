@@ -1,0 +1,21 @@
+Found 12 test(s).
+Creating test database for alias 'default'...
+System check identified no issues (0 silenced).
+test_create_user (accounts.tests.TestUser) ... ok
+test_login (accounts.tests.TestUser) ... ok
+test_referral_status (referrals.tests.TestReferral) ... ok
+test_parallel_build (builds.tests.TestBuild) ... ok
+test_prompt_upload (prompts.tests.TestPrompt) ... ok
+test_empty_note (notes.tests.TestNote) ... ok
+test_specialty_filter (specialty.tests.TestSpecialty) ... ok
+test_template_render (templates.tests.TestTemplate) ... ok
+test_ocr_path (ocr.tests.TestOcr) ... ok
+test_cost_rollup (analytics.tests.TestCost) ... ok
+test_webhook (webhooks.tests.TestWebhook) ... ok
+test_feature_flag (flags.tests.TestFlags) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 2.451s
+
+OK
+Destroying test database for alias 'default'...
