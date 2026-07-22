@@ -1,0 +1,11 @@
+commit abcdef0123456789abcdef0123456789abcdef01
+Author: Ada Lovelace <ada@example.com>
+Date:   Mon Jan 1 12:00:00 2024 +0000
+
+    Initial commit
+
+commit deadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+Author: Ada Lovelace <ada@example.com>
+Date:   Mon Jan 2 12:00:00 2024 +0000
+
+    Add filter

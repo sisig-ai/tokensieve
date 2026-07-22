@@ -1,0 +1,7 @@
+On branch main
+Your branch is up to date with 'origin/main'.
+Changes not staged for commit:
+	modified:   src/main.zig
+Untracked files:
+	README.md
+no changes added to commit (use "git add" and/or "git commit -a")

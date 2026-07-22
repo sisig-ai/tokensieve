@@ -1,0 +1,12 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.0, pytest-8.0.0
+cachedir: .pytest_cache
+rootdir: /tmp/demo
+plugins: anyio-4.0.0
+collected 3 items
+
+tests/test_foo.py::test_one PASSED                                       [ 33%]
+tests/test_foo.py::test_two PASSED                                       [ 66%]
+tests/test_foo.py::test_three PASSED                                     [100%]
+
+============================== 3 passed in 0.05s ===============================
