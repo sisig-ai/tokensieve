@@ -12,6 +12,8 @@ const django_test = @import("filter/django_test.zig");
 const ruff = @import("filter/ruff.zig");
 const mypy = @import("filter/mypy.zig");
 const grep = @import("filter/grep.zig");
+const go_test = @import("filter/go_test.zig");
+const tsc = @import("filter/tsc.zig");
 
 pub const Kind = enum {
     git_status,
@@ -26,6 +28,8 @@ pub const Kind = enum {
     ruff,
     mypy,
     grep,
+    go_test,
+    tsc,
 };
 
 pub const Ctx = struct {
@@ -61,6 +65,8 @@ pub fn apply(gpa: Allocator, kind: Kind, args: []const []const u8, stdout: []con
         .ruff => try ruff.compact(gpa, stripped),
         .mypy => try mypy.compact(gpa, stripped),
         .grep => if (grep.argsAllowCompact(args)) try grep.compact(gpa, stripped) else null,
+        .go_test => try go_test.compact(gpa, stripped),
+        .tsc => try tsc.compact(gpa, stripped),
     };
 
     if (compacted) |c| {

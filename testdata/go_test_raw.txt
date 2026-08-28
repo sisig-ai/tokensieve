@@ -1,0 +1,9 @@
+=== RUN   TestPass
+    sample_test.go:6: this passes
+--- PASS: TestPass (0.00s)
+=== RUN   TestFail
+    sample_test.go:10: this fails
+--- FAIL: TestFail (0.00s)
+FAIL
+exit status 1
+FAIL	example.com/tokensieve-sample	0.003s

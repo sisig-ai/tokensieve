@@ -21,6 +21,8 @@ const usage =
     \\  mypy [-- args...]
     \\  rg [-- args...]
     \\  grep [-- args...]
+    \\  go test [-- args...]
+    \\  tsc [-- args...]
     \\  --help
     \\  --version
     \\
@@ -83,6 +85,12 @@ pub fn main(init: std.process.Init) u8 {
     if (std.mem.eql(u8, cmd, "grep")) {
         const path_env = init.environ_map.get("PATH") orelse "";
         return dispatchGrep(gpa, io, arena, path_env, args[2..]);
+    }
+    if (std.mem.eql(u8, cmd, "go")) {
+        return dispatchGo(gpa, io, arena, args[2..]);
+    }
+    if (std.mem.eql(u8, cmd, "tsc")) {
+        return dispatchTsc(gpa, io, arena, args[2..]);
     }
 
     std.debug.print("tokensieve: unknown command: {s}\n{s}", .{ cmd, usage });
@@ -242,6 +250,37 @@ fn dispatchRg(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, rest
     return dispatchGrepLike(gpa, io, arena, "rg", rest);
 }
 
+fn dispatchTsc(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, rest: []const [:0]const u8) u8 {
+    const child_argv = buildArgv(arena, &.{"tsc"}, rest) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const trailing_slices = toSlices(arena, rest) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const ctx = filter.Ctx{ .kind = .tsc, .args = trailing_slices };
+    return runner.run(gpa, io, child_argv, &ctx, filter.callback, filter.shouldMergeStreams);
+}
+
+fn dispatchGo(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, rest: []const [:0]const u8) u8 {
+    if (rest.len == 0 or !std.mem.eql(u8, rest[0], "test")) {
+        std.debug.print("tokensieve: expected `go test`\n{s}", .{usage});
+        return 2;
+    }
+    const trailing = rest[1..];
+    const child_argv = buildArgv(arena, &.{ "go", "test" }, trailing) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const trailing_slices = toSlices(arena, trailing) catch {
+        std.debug.print("tokensieve: out of memory\n", .{});
+        return 1;
+    };
+    const ctx = filter.Ctx{ .kind = .go_test, .args = trailing_slices };
+    return runner.run(gpa, io, child_argv, &ctx, filter.callback, filter.shouldMergeStreams);
+}
+
 fn dispatchGrep(gpa: std.mem.Allocator, io: std.Io, arena: std.mem.Allocator, path_env: []const u8, rest: []const [:0]const u8) u8 {
     // Prefer ripgrep when present; fall back to system grep.
     const exe = blk: {
@@ -294,6 +333,8 @@ const filter_tests = struct {
         _ = @import("filter_test/ruff.zig");
         _ = @import("filter_test/mypy.zig");
         _ = @import("filter_test/grep.zig");
+        _ = @import("filter_test/go_test.zig");
+        _ = @import("filter_test/tsc.zig");
     }
 };
 
