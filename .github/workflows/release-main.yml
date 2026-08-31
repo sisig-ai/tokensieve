@@ -1,0 +1,38 @@
+name: Release main
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build, test, and release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29
+
+      - name: Build, test, and verify
+        run: |
+          zig build test
+          zig build -Dtarget=x86_64-linux -Doptimize=ReleaseSafe
+          mv zig-out/bin/tokensieve tokensieve-linux-x86_64
+          file tokensieve-linux-x86_64 | grep -q 'ELF 64-bit LSB.*x86-64'
+          ./tokensieve-linux-x86_64 --version
+
+      - name: Publish release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
+        with:
+          tag_name: main-${{ github.run_id }}
+          target_commitish: ${{ github.sha }}
+          files: tokensieve-linux-x86_64
+          fail_on_unmatched_files: true
